@@ -38,10 +38,12 @@ token.not_provided: "Kein Token bereitgestellt"
 token.expired: "Dieses Token ist abgelaufen"
 token.exhausted: "Das Kontingent dieses Tokens ist erschöpft"
 
+# OAuth messages
+oauth.oidc_group_denied: "OIDC-Anmeldung abgelehnt: Ihr Konto befindet sich nicht in der erforderlichen Gruppe"
+
 subscription.not_enabled: "Abonnementfunktion ist nicht aktiviert"
 subscription.plan_not_found: "Abonnementplan nicht gefunden"
 subscription.plan_not_free: "Dies ist kein kostenloser Plan"
 subscription.purchase_max: "Maximale Anzahl an Käufen erreicht"
 subscription.purchase_success: "Kauf erfolgreich"
 subscription.bind_success: "Abonnement erfolgreich gebunden"
-
