@@ -33,11 +33,12 @@ type oidcOAuthResponse struct {
 }
 
 type oidcUser struct {
-	OpenID            string `json:"sub"`
-	Email             string `json:"email"`
-	Name              string `json:"name"`
-	PreferredUsername string `json:"preferred_username"`
-	Picture           string `json:"picture"`
+	OpenID            string   `json:"sub"`
+	Email             string   `json:"email"`
+	Name              string   `json:"name"`
+	PreferredUsername string   `json:"preferred_username"`
+	Picture           string   `json:"picture"`
+	Groups            []string `json:"groups"`
 }
 
 func (p *OIDCProvider) GetName() string {
@@ -156,6 +157,9 @@ func (p *OIDCProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAu
 		Username:       oidcUser.PreferredUsername,
 		DisplayName:    oidcUser.Name,
 		Email:          oidcUser.Email,
+		Extra: map[string]any{
+			"groups": oidcUser.Groups,
+		},
 	}, nil
 }
 

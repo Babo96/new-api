@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -103,6 +105,10 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
+	if !enforceOIDCRequiredGroup(c, providerName, oauthUser) {
+		return
+	}
+
 	// 7. Find or create user
 	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
 	if err != nil {
@@ -127,6 +133,25 @@ func HandleOAuth(c *gin.Context) {
 	setupLogin(user, c)
 }
 
+func enforceOIDCRequiredGroup(c *gin.Context, providerName string, oauthUser *oauth.OAuthUser) bool {
+	if !strings.EqualFold(providerName, "oidc") {
+		return true
+	}
+
+	requiredGroup := strings.TrimSpace(system_setting.GetOIDCSettings().RequiredGroup)
+	if requiredGroup == "" {
+		return true
+	}
+
+	groups, ok := oauthUser.Extra["groups"].([]string)
+	if ok && common.StringsContains(groups, requiredGroup) {
+		return true
+	}
+
+	common.ApiErrorI18n(c, i18n.MsgOAuthOIDCGroupDenied)
+	return false
+}
+
 // handleOAuthBind handles binding OAuth account to existing user
 func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 	if !provider.IsEnabled() {
@@ -146,6 +171,10 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 	oauthUser, err := provider.GetUserInfo(c.Request.Context(), token)
 	if err != nil {
 		handleOAuthError(c, err)
+		return
+	}
+
+	if !enforceOIDCRequiredGroup(c, provider.GetName(), oauthUser) {
 		return
 	}
 
