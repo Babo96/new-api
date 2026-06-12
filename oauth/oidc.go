@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func init() {
@@ -152,15 +153,88 @@ func (p *OIDCProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAu
 
 	logger.LogDebug(ctx, "[OAuth-OIDC] GetUserInfo success: sub=%s, username=%s, name=%s, email=%s", oidcUser.OpenID, oidcUser.PreferredUsername, oidcUser.Name, oidcUser.Email)
 
+	groups := appendUniqueGroups(extractOIDCTokenGroups(token), oidcUser.Groups...)
+
 	return &OAuthUser{
 		ProviderUserID: oidcUser.OpenID,
 		Username:       oidcUser.PreferredUsername,
 		DisplayName:    oidcUser.Name,
 		Email:          oidcUser.Email,
 		Extra: map[string]any{
-			"groups": oidcUser.Groups,
+			"groups": groups,
 		},
 	}, nil
+}
+
+func extractOIDCTokenGroups(token *OAuthToken) []string {
+	if token == nil {
+		return nil
+	}
+
+	groups := extractOIDCGroupsClaim(token.IDToken)
+	return appendUniqueGroups(groups, extractOIDCGroupsClaim(token.AccessToken)...)
+}
+
+func extractOIDCGroupsClaim(tokenString string) []string {
+	if tokenString == "" {
+		return nil
+	}
+
+	claims := jwt.MapClaims{}
+	_, _, err := jwt.NewParser().ParseUnverified(tokenString, claims)
+	if err != nil {
+		return nil
+	}
+
+	return normalizeOIDCGroupsClaim(claims["groups"])
+}
+
+func normalizeOIDCGroupsClaim(value any) []string {
+	switch groups := value.(type) {
+	case []string:
+		return appendUniqueGroups(nil, groups...)
+	case []any:
+		result := make([]string, 0, len(groups))
+		for _, group := range groups {
+			if groupName, ok := group.(string); ok {
+				result = appendUniqueGroups(result, groupName)
+			}
+		}
+		return result
+	case string:
+		return appendUniqueGroups(nil, groups)
+	default:
+		return nil
+	}
+}
+
+func appendUniqueGroups(groups []string, additions ...string) []string {
+	seen := make(map[string]struct{}, len(groups)+len(additions))
+	result := make([]string, 0, len(groups)+len(additions))
+
+	for _, group := range groups {
+		if group == "" {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		result = append(result, group)
+	}
+
+	for _, group := range additions {
+		if group == "" {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		result = append(result, group)
+	}
+
+	return result
 }
 
 func (p *OIDCProvider) IsUserIDTaken(providerUserID string) bool {
